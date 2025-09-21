@@ -4,18 +4,22 @@ const { PrismaClient } = require('./generated/prisma');
 const prisma = new PrismaClient();
 const bcrypt = require ('bcrypt');
 const jsonjwt = require('jsonwebtoken');
-
-const jwt_secret = process.env.JWT_SECRET
+const cors = require('cors');
 
 const app = express();
-
-const PORT = 3000;
-
 app.use(express.json());
 
+const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Auth service is listening on port ${PORT}`);
 });
+
+const corsOptions = {
+  "origin" : "http://localhost:5173"
+}
+app.use(cors({corsOptions}));
+
+const jwt_secret = process.env.JWT_SECRET
 
 app.get ('/healthz', (req, res) => {
     res.send(`Auth service is healthy and listening on port ${PORT}`)
