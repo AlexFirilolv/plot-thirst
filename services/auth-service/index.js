@@ -147,3 +147,25 @@ app.post('/refresh_token', async (req, res) => {
   catch (error) {
     return res.status(500).json({"message": "Oops! Something went wrong, please try again later"});
   }});
+
+app.get('/verify_token', async (req, res) => {
+  const token = req.cookies.jwt;
+  if (!token) {
+    return res.status(401)
+    .json({ "message": "jwt not provided"});
+  }
+  try {
+  const verifiedToken = jsonjwt.verify(token, jwt_secret);
+  const userId = verifiedToken.userId;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return res.status(404).json({"message": "User with this token wasn't found."})
+  }
+  return res.status(200)
+  .json({"message": "Token is valid"});
+  
+}
+
+  catch(error) {
+    return res.status(401).json({"message": "Error in token verification"});
+  }})
