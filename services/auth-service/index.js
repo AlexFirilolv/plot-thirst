@@ -122,3 +122,28 @@ app.post(
       return res.status(500).json({"message": "Oops! Something went wrong, please try again later"})
     }
 })
+
+app.post('/refresh_token', async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) {
+    return res.status(401).json({"message": "No refresh token provided"});
+  }
+
+  try {
+    const decoded = jsonjwt.verify(refreshToken, jwt_secret);
+    const userId = decoded.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({"message": "Invalid refresh token"});
+    }
+
+    const newJwt = jsonjwt.sign({ userId: user.id }, jwt_secret, { expiresIn: '1h' });
+
+    return res.status(200)
+      .cookie('jwt', newJwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
+      .json({"message": "Token refreshed successfully"});
+  }
+  catch (error) {
+    return res.status(500).json({"message": "Oops! Something went wrong, please try again later"});
+  }});
