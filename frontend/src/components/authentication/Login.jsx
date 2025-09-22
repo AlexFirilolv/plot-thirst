@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './Authentication.css'
 
-function Login() {
+function Login({ onAuthSuccess }) {
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -24,6 +24,7 @@ function Login() {
       if(response.ok) {
         localStorage.setItem('jwt', data.jwt)
         alert(data.message);
+        onAuthSuccess(true);
       }
       
       if(!response.ok) {
