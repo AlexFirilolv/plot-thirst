@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const bcrypt = require ('bcrypt');
 const jsonjwt = require('jsonwebtoken');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 app.use(express.json());
@@ -17,7 +18,9 @@ app.listen(PORT, () => {
 const corsOptions = {
   "origin" : "http://localhost:5173"
 }
-app.use(cors({corsOptions}));
+app.use(cors(corsOptions));
+
+app.use(cookieParser());
 
 const jwt_secret = process.env.JWT_SECRET
 
@@ -56,14 +59,19 @@ app.post(
 
       const newUser = await prisma.user.create(user);
 
-      const payload = {
-          "userId": newUser.id
-      }
+      const refreshToken = jsonjwt.sign({"userId": newUser.id},jwt_secret,{ expiresIn: '7d' });
+      await prisma.user.update({where: { id: newUser.id }, data: { refreshToken: refreshToken }});
 
+      const payload = {
+          "userId": newUser.id,
+      }
+      
       const jwt = jsonjwt.sign(payload,jwt_secret,{ expiresIn: '1h' });
 
       return res.status(201)
-      .json({ "message": "User created successfully", "userId": newUser.id , "userEmail": newUser.email, "jwt": jwt})
+      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 7*24*60*60*1000 })
+      .cookie('jwt', jwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
+      .json({ "message": "User created successfully", "userId": newUser.id , "userEmail": newUser.email } );
       }
     catch(error) {
       return res.status(500).json({"message": "Oops! Something went wrong, please try agian later"})
@@ -96,12 +104,18 @@ app.post(
         return res.status(401).json({"message": "Invalid credentials"});
       }
 
+      const refreshToken = jsonjwt.sign({"userId": loggedUser.id},jwt_secret,{ expiresIn: '7d' });
+      await prisma.user.update({where: { id: loggedUser.id }, data: { refreshToken: refreshToken }});
+
       const payload = {
           "userId": loggedUser.id
       }
       const jwt = jsonjwt.sign(payload,jwt_secret,{ expiresIn: '1h' });
 
-      return res.status(200).json({"message": "Logged in successfuly!", "jwt": jwt})
+      return res.status(200)
+      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 7*24*60*60*1000 })
+      .cookie('jwt', jwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
+      .json({"message": "Logged in successfuly!"})
     }
   
     catch(error) {
