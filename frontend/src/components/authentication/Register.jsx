@@ -22,7 +22,6 @@ function Register( { onAuthSuccess } ) {
       const data = await response.json();
 
       if(response.ok) {
-        localStorage.setItem('jwt', data.jwt)
         alert(data.message);
         onAuthSuccess(true);
       }

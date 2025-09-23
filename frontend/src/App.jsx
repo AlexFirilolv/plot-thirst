@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import api from './api/api.js'
 import './App.css'
 import Login from './components/authentication/Login'
 import Register from './components/authentication/Register'
@@ -8,8 +9,16 @@ function App() {
 const [ isAuthenticated, setIsAuthenticated ] = useState(false); 
 
 useEffect(() => {
-  if (localStorage.getItem('jwt'))
-  setIsAuthenticated(true);
+  async function verifySession(){
+    try {
+      await api.get('/verify_token');
+      setIsAuthenticated(true);
+    }
+    catch (error) {
+      setIsAuthenticated(false);
+    }
+  }
+  verifySession();
 }, []);
 
   return (
