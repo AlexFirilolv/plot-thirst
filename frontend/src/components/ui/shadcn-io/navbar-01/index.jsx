@@ -9,6 +9,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import Login from '@/components/authentication/Login';
+import Register from '@/components/authentication/Register';
+import { useAuth } from '@/contexts/AuthContext';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 // Simple logo component for the navbar
 const Logo = (props) => {
@@ -81,12 +85,9 @@ export const Navbar01 = React.forwardRef((
   {
     className,
     logo = <Logo />,
-    logoHref = '#',
     navigationLinks = defaultNavigationLinks,
     signInText = 'Sign In',
-    signInHref = '#signin',
     ctaText = 'Get Started',
-    ctaHref = '#get-started',
     onSignInClick,
     onCtaClick,
     ...props
@@ -94,7 +95,10 @@ export const Navbar01 = React.forwardRef((
   ref
 ) => {
   const [isMobile, setIsMobile] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const containerRef = useRef(null);
+  const { isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
     const checkWidth = () => {
@@ -130,7 +134,7 @@ export const Navbar01 = React.forwardRef((
     <header
       ref={combinedRef}
       className={cn(
-        'sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 [&_*]:no-underline',
+        'sticky top-0 z-50 w-full border-b border-border/30 bg-background/20 backdrop-blur-md supports-[backdrop-filter]:bg-background/20 px-4 md:px-6 [&_*]:no-underline',
         className
       )}
       {...props}>
@@ -206,25 +210,113 @@ export const Navbar01 = React.forwardRef((
         </div>
         {/* Right side */}
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onSignInClick) onSignInClick();
-            }}>
-            {signInText}
-          </Button>
-          <Button
-            size="sm"
-            className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onCtaClick) onCtaClick();
-            }}>
-            {ctaText}
-          </Button>
+          <ThemeToggle />
+          {isAuthenticated ? (
+            <>
+              <span className="text-sm text-foreground/80">Welcome!</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  await logout();
+                }}>
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Popover open={showLoginModal} onOpenChange={setShowLoginModal}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowLoginModal(true);
+                      if (onSignInClick) onSignInClick();
+                    }}>
+                    {signInText}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Sign In</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Enter your credentials to access your account
+                      </p>
+                    </div>
+                    <Login
+                      onAuthSuccess={(success) => {
+                        if (success) {
+                          setShowLoginModal(false);
+                        }
+                      }}
+                    />
+                    <div className="text-center">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="text-sm"
+                        onClick={() => {
+                          setShowLoginModal(false);
+                          setShowRegisterModal(true);
+                        }}>
+                        Don't have an account? Sign up
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover open={showRegisterModal} onOpenChange={setShowRegisterModal}>
+                <PopoverTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowRegisterModal(true);
+                      if (onCtaClick) onCtaClick();
+                    }}>
+                    {ctaText}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Get Started</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Create your account to get started
+                      </p>
+                    </div>
+                    <Register
+                      onAuthSuccess={(success) => {
+                        if (success) {
+                          setShowRegisterModal(false);
+                        }
+                      }}
+                    />
+                    <div className="text-center">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="text-sm"
+                        onClick={() => {
+                          setShowRegisterModal(false);
+                          setShowLoginModal(true);
+                        }}>
+                        Already have an account? Sign in
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
         </div>
       </div>
     </header>

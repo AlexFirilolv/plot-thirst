@@ -1,49 +1,72 @@
 import { useState } from 'react'
-import './Authentication.css'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/components/ui/toast'
 
 function Login({ onAuthSuccess }) {
-
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-
-  const backendUrl = "http://localhost:3000";
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const { showToast } = useToast();
 
   async function handleLogin(e) {
     e.preventDefault();
-
-    const bodyData = { "email": loginEmail, "password": loginPassword };
-    const stringifiedBody = JSON.stringify(bodyData);
+    setIsLoading(true);
 
     try {
+      const result = await login(loginEmail, loginPassword);
 
-      const response = await fetch(`${backendUrl}/login`,
-        { "method": 'POST', "headers": { 'Content-Type': 'application/json' }, "body": stringifiedBody});
-
-      const data = await response.json();
-
-      if(response.ok) {
-        alert(data.message);
+      if (result.success) {
+        showToast(result.message, 'success');
         onAuthSuccess(true);
+        setLoginEmail('');
+        setLoginPassword('');
+      } else {
+        showToast(result.message, 'error');
       }
-      
-      if(!response.ok) {
-        alert(data.message);
-      }
-
-    } catch(error) {
-      alert("Oops! An error occured, please try again later")
+    } catch {
+      showToast('An unexpected error occurred. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
     }
   }
 
   return (
-    <>
-      <form onSubmit={handleLogin}>
-        <h2>Login</h2>
-        <input type="email" placeholder="Your email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)}/>
-        <input type="password" placeholder="Your password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)}/>
-        <button type="submit">Login</button>
-      </form>
-    </>
+    <form onSubmit={handleLogin} className="space-y-4">
+      <div className="space-y-2">
+        <input
+          type="email"
+          placeholder="Your email"
+          value={loginEmail}
+          onChange={(event) => setLoginEmail(event.target.value)}
+          className={cn(
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+            "file:border-0 file:bg-transparent file:text-sm file:font-medium",
+            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2",
+            "focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Your password"
+          value={loginPassword}
+          onChange={(event) => setLoginPassword(event.target.value)}
+          className={cn(
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+            "file:border-0 file:bg-transparent file:text-sm file:font-medium",
+            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2",
+            "focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+          required
+        />
+      </div>
+      <Button type="submit" className="w-full" disabled={isLoading}>
+        {isLoading ? 'Signing In...' : 'Sign In'}
+      </Button>
+    </form>
   )
 }
 

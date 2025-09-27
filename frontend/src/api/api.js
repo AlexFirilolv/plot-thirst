@@ -10,13 +10,21 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response.status === 401 && !originalRequest._retry) {
+    // Don't try to refresh token for the refresh endpoint itself, login, register, or if already retried
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/refresh_token') &&
+      !originalRequest.url?.includes('/login') &&
+      !originalRequest.url?.includes('/register')
+    ) {
       originalRequest._retry = true;
 
       try {
         await api.post('/refresh_token');
         return api(originalRequest);
       } catch (refreshError) {
+        // If refresh fails, don't retry again
         return Promise.reject(refreshError);
       }
     }

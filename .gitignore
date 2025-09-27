@@ -143,3 +143,11 @@ vite.config.ts.timestamp-*
 
 # Prisma generated files
 services/*/generated/
+
+# Playwright test files
+*playwright*
+test-results/
+
+# Claude
+.claude/
+CLAUDE.MD

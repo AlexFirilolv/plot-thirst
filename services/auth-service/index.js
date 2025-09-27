@@ -16,13 +16,20 @@ app.listen(PORT, () => {
 });
 
 const corsOptions = {
-  "origin" : "http://localhost:5173"
+  "origin" : ["http://localhost:5173", "http://localhost:5174"],
+  "credentials": true
 }
 app.use(cors(corsOptions));
 
 app.use(cookieParser());
 
-const jwt_secret = process.env.JWT_SECRET
+const jwt_secret = process.env.JWT_SECRET;
+const refresh_token_secret = process.env.REFRESH_TOKEN_SECRET;
+
+if (!jwt_secret || !refresh_token_secret) {
+  console.error('Missing required JWT secrets in environment variables');
+  process.exit(1);
+}
 
 app.get ('/healthz', (req, res) => {
     res.send(`Auth service is healthy and listening on port ${PORT}`)
@@ -59,7 +66,7 @@ app.post(
 
       const newUser = await prisma.user.create(user);
 
-      const refreshToken = jsonjwt.sign({"userId": newUser.id},jwt_secret,{ expiresIn: '7d' });
+      const refreshToken = jsonjwt.sign({"userId": newUser.id, "tokenVersion": 1},refresh_token_secret,{ expiresIn: '7d' });
       await prisma.user.update({where: { id: newUser.id }, data: { refreshToken: refreshToken }});
 
       const payload = {
@@ -69,12 +76,13 @@ app.post(
       const jwt = jsonjwt.sign(payload,jwt_secret,{ expiresIn: '1h' });
 
       return res.status(201)
-      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 7*24*60*60*1000 })
-      .cookie('jwt', jwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
-      .json({ "message": "User created successfully", "userId": newUser.id , "userEmail": newUser.email } );
+      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 7*24*60*60*1000 })
+      .cookie('jwt', jwt, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 60*60*1000 })
+      .json({ "message": "Account created successfully" });
       }
     catch(error) {
-      return res.status(500).json({"message": "Oops! Something went wrong, please try agian later"})
+      console.error('Registration error:', error);
+      return res.status(500).json({"message": "Registration failed. Please try again."})
      }
       })
 
@@ -104,7 +112,7 @@ app.post(
         return res.status(401).json({"message": "Invalid credentials"});
       }
 
-      const refreshToken = jsonjwt.sign({"userId": loggedUser.id},jwt_secret,{ expiresIn: '7d' });
+      const refreshToken = jsonjwt.sign({"userId": loggedUser.id, "tokenVersion": 1},refresh_token_secret,{ expiresIn: '7d' });
       await prisma.user.update({where: { id: loggedUser.id }, data: { refreshToken: refreshToken }});
 
       const payload = {
@@ -113,59 +121,92 @@ app.post(
       const jwt = jsonjwt.sign(payload,jwt_secret,{ expiresIn: '1h' });
 
       return res.status(200)
-      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 7*24*60*60*1000 })
-      .cookie('jwt', jwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
-      .json({"message": "Logged in successfuly!"})
+      .cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 7*24*60*60*1000 })
+      .cookie('jwt', jwt, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 60*60*1000 })
+      .json({"message": "Welcome back!"})
     }
   
     catch(error) {
-      return res.status(500).json({"message": "Oops! Something went wrong, please try again later"})
+      console.error('Login error:', error);
+      return res.status(500).json({"message": "Login failed. Please try again."})
     }
 })
 
 app.post('/refresh_token', async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken) {
-    return res.status(401).json({"message": "No refresh token provided"});
+    return res.status(401).json({"message": "Authentication required"});
   }
 
   try {
-    const decoded = jsonjwt.verify(refreshToken, jwt_secret);
+    const decoded = jsonjwt.verify(refreshToken, refresh_token_secret);
     const userId = decoded.userId;
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!user || user.refreshToken !== refreshToken) {
-      return res.status(403).json({"message": "Invalid refresh token"});
+      return res.status(403).json({"message": "Invalid session"});
     }
 
+    // Generate new access token
     const newJwt = jsonjwt.sign({ userId: user.id }, jwt_secret, { expiresIn: '1h' });
 
+    // Generate new refresh token (token rotation)
+    const newRefreshToken = jsonjwt.sign({"userId": user.id, "tokenVersion": (decoded.tokenVersion || 1) + 1}, refresh_token_secret, { expiresIn: '7d' });
+
+    // Update refresh token in database
+    await prisma.user.update({where: { id: user.id }, data: { refreshToken: newRefreshToken }});
+
     return res.status(200)
-      .cookie('jwt', newJwt, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 60*60*1000 })
-      .json({"message": "Token refreshed successfully"});
+      .cookie('jwt', newJwt, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 60*60*1000 })
+      .cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 7*24*60*60*1000 })
+      .json({"message": "Session renewed"});
   }
   catch (error) {
-    return res.status(500).json({"message": "Oops! Something went wrong, please try again later"});
+    return res.status(401).json({"message": "Invalid session"});
   }});
+
+app.post('/logout', async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+
+  try {
+    if (refreshToken) {
+      // Decode to get user ID and clear refresh token from database
+      const decoded = jsonjwt.verify(refreshToken, refresh_token_secret);
+      await prisma.user.update({
+        where: { id: decoded.userId },
+        data: { refreshToken: null }
+      });
+    }
+  } catch (error) {
+    // Continue with logout even if token is invalid
+    console.error('Logout token cleanup error:', error);
+  }
+
+  return res.status(200)
+    .clearCookie('jwt')
+    .clearCookie('refreshToken')
+    .json({"message": "Logged out successfully"});
+});
 
 app.get('/verify_token', async (req, res) => {
   const token = req.cookies.jwt;
   if (!token) {
     return res.status(401)
-    .json({ "message": "jwt not provided"});
+    .json({ "message": "Authentication required"});
   }
   try {
   const verifiedToken = jsonjwt.verify(token, jwt_secret);
   const userId = verifiedToken.userId;
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    return res.status(404).json({"message": "User with this token wasn't found."})
+    return res.status(401).json({"message": "Invalid session"})
   }
   return res.status(200)
-  .json({"message": "Token is valid"});
-  
+  .json({"message": "Session valid"});
+
 }
 
   catch(error) {
-    return res.status(401).json({"message": "Error in token verification"});
+    console.error('Token verification error:', error);
+    return res.status(401).json({"message": "Invalid session"});
   }})
