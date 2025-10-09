@@ -1,72 +1,106 @@
+import { useEffect, useState } from 'react'
+import api from './api/api.js'
 import './App.css'
-import { Navbar01 } from './components/ui/shadcn-io/navbar-01'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ThemeProvider } from './contexts/ThemeContext'
-import { useToast } from './components/ui/toast'
-import { AuroraBackground } from './components/ui/shadcn-io/aurora-background'
-import { LandingPage } from './components/LandingPage'
-import { AgeVerification, useAgeVerification } from './components/AgeVerification'
-
-function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const { ToastContainer } = useToast();
-  const { isVerified, isLoading: ageLoading, handleVerified } = useAgeVerification();
-
-  // Show loading while checking auth or age verification
-  if (isLoading || ageLoading) {
-    return (
-      <AuroraBackground>
-        <div className="flex items-center justify-center min-h-screen w-full">
-          <div className="text-center space-y-4 z-10 relative">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
-            <p className="text-foreground">Loading...</p>
-          </div>
-        </div>
-      </AuroraBackground>
-    );
-  }
-
-  return (
-    <AuroraBackground>
-      <div className="w-full min-h-screen relative z-10 flex flex-col">
-        <Navbar01 />
-        <main className="flex-1">
-          {isAuthenticated ? (
-            <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-16">
-              <div className="text-center space-y-4 sm:space-y-6">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground">Welcome Back!</h1>
-                <p className="text-base sm:text-lg lg:text-xl text-muted-foreground">
-                  Ready to continue your interactive storytelling journey?
-                </p>
-                <div className="mt-8 p-6 bg-card border border-border rounded-lg">
-                  <p className="text-muted-foreground">
-                    Your personalized story dashboard will be available here soon.
-                    Start creating and exploring AI-generated narratives!
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <LandingPage />
-          )}
-        </main>
-      </div>
-      <ToastContainer />
-
-      {/* Age Verification Popup */}
-      <AgeVerification onVerified={handleVerified} />
-    </AuroraBackground>
-  );
-}
+import Login from './components/authentication/Login'
+import Register from './components/authentication/Register'
+import NavigationBar from './components/NavigationBar'
 
 function App() {
+
+const [ isAuthenticated, setIsAuthenticated ] = useState(false)
+const [ showLogin, setShowLogin ] = useState(false)
+const [ showRegister, setShowRegister ] = useState(false)
+
+useEffect(() => {
+  async function verifySession(){
+    try {
+      await api.get('/verify_token');
+      setIsAuthenticated(true);
+    }
+    catch (error) {
+      setIsAuthenticated(false);
+    }
+  }
+  verifySession();
+}, []);
+
+const handleAuthSuccess = (authenticated) => {
+  setIsAuthenticated(authenticated)
+  setShowLogin(false)
+  setShowRegister(false)
+}
+
+const handleShowLogin = () => {
+  setShowLogin(true)
+  setShowRegister(false)
+}
+
+const handleShowRegister = () => {
+  setShowRegister(true)
+  setShowLogin(false)
+}
+
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ThemeProvider>
-  );
+    <div className="min-h-screen">
+      <NavigationBar
+        isAuthenticated={isAuthenticated}
+        onAuthChange={setIsAuthenticated}
+        onShowLogin={handleShowLogin}
+        onShowRegister={handleShowRegister}
+      />
+
+      <main className="pt-16">
+        {isAuthenticated ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 className="text-4xl font-bold mb-4">Welcome Back!</h1>
+            <p className="text-muted-foreground">Your personalized content will appear here.</p>
+          </div>
+        ) : (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="text-center mb-12">
+              <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                Welcome to Plot Thirst
+              </h1>
+              <p className="text-xl text-muted-foreground">
+                Indulge in AI-generated erotic stories tailored to your desires
+              </p>
+            </div>
+
+            {(showLogin || showRegister) && (
+              <div className="max-w-md mx-auto">
+                {showLogin && <Login onAuthSuccess={handleAuthSuccess}/>}
+                {showRegister && <Register onAuthSuccess={handleAuthSuccess}/>}
+
+                <div className="mt-4 text-center">
+                  {showLogin ? (
+                    <p className="text-sm text-muted-foreground">
+                      Don't have an account?{' '}
+                      <button
+                        onClick={handleShowRegister}
+                        className="text-accent hover:underline font-medium"
+                      >
+                        Sign up
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Already have an account?{' '}
+                      <button
+                        onClick={handleShowLogin}
+                        className="text-accent hover:underline font-medium"
+                      >
+                        Log in
+                      </button>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  )
 }
 
 export default App
